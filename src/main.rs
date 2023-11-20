@@ -2,8 +2,7 @@ use std::{
     fs,
     io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
-    thread,
-    time::Duration,
+    path,
 };
 
 use hello::ThreadPool;
@@ -30,14 +29,27 @@ fn handle_connection(mut stream: TcpStream) {
 
     let request_line = buf_reader.lines().next().unwrap().unwrap();
 
-    let (status_line, filename) = match &request_line[..] {
-        "GET / HTTP/1.1" => ("HTTP/1.1 OK", public("hello.html")),
-        "GET /sleep HTTP/1.1" => {
-            thread::sleep(Duration::from_secs(10));
-            ("HTTP/1.1 200 OK", public("hello.html"))
+    let request_line_parts: Vec<&str> = request_line.split(" ").collect();
+
+    let request_path = public(request_line_parts[1]);
+
+    let status_line;
+    let filename;
+
+    match request_line_parts[1] {
+        "/" => {
+            (status_line, filename) = ("HTTP/1.1 OK", public("index.html"));
         }
-        _ => ("HTTP/1.1 404 NOT FOUND", public("404.html")),
-    };
+        any => {
+            if !path::Path::new(&public(any)).exists() {
+                (status_line, filename) = ("HTTP/1.1 404 NOT FOUND", public("404.html"));
+            } else {
+                (status_line, filename) = ("HTTP/1.1 OK", public(any));
+            }
+        }
+    }
+
+    println!("{status_line}, {filename}");
 
     let content = fs::read_to_string(filename).unwrap();
     let length = content.len();
